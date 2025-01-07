@@ -45,38 +45,69 @@ function verifySignature(
 }
 
 app.post('/', async (req: any, res: any) => {
+  console.log('Incoming webhook request:', {
+    headers: req.headers,
+    ip: req.ip,
+    method: req.method,
+    path: req.path
+  });
+
   const signature = req.headers['x-signature'] as string;
   const rawBody = req.rawBody.toString('utf8');
   
   if (!signature) {
+    console.warn('Request rejected: Missing signature header');
     return res.status(401).json({ error: 'Missing signature' });
   }
 
   if (!rawBody) {
+    console.warn('Request rejected: Empty request body');
     return res.status(400).json({ error: 'Missing request body' });
   }
+
+  console.log('Raw request body:', rawBody);
 
   let body;
   try {
     body = JSON.parse(rawBody);
+    console.log('Parsed webhook payload:', body);
   } catch (error) {
-    console.error('Failed to parse request body:', error);
+    console.error('JSON parsing failed:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      rawBody
+    });
     return res.status(400).json({ error: 'Invalid JSON body' });
   }
 
   if (!body.created_at) {
+    console.warn('Request rejected: Missing timestamp', { body });
     return res.status(400).json({ error: 'Missing created_at timestamp' });
   }
 
+  console.log('Attempting signature verification:', {
+    timestamp: body.created_at,
+    currentTime: Math.floor(Date.now() / 1000)
+  });
+
   if (!verifySignature(rawBody, signature, body.created_at)) {
+    console.warn('Request rejected: Invalid signature', {
+      providedSignature: signature,
+      timestamp: body.created_at
+    });
     return res.status(401).json({ error: 'Invalid signature' });
   }
 
   const { session_id, status, vendor_data } = body;
-  console.log('Webhook received:', { session_id, status, vendor_data });
+  console.log('Processing webhook:', {
+    session_id,
+    status,
+    vendor_data,
+    timestamp: new Date().toISOString()
+  });
 
   // Handle the webhook event
   res.json({ received: true });
+  console.log('Webhook processed successfully:', { session_id });
 });
 
 app.listen(webhookPort, () => {
