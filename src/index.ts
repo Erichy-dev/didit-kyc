@@ -8,6 +8,8 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT;
 const url = process.env.URL;
+const apiUrl = process.env.API_URL;
+const verificationUrl = process.env.VERIFICATION_URL;
 
 // Middleware
 app.use(express.json());
@@ -141,7 +143,7 @@ app.get('/', async (req: Request, res: Response) => {
 });
 
 // Token endpoint
-app.post('/auth/v2/token', (req: Request, res: Response): void => {
+app.post('/auth/v2/token', async (req: Request, res: Response): Promise<void> => {
   const authHeader = req.headers.authorization;
   
   if (!authHeader?.startsWith('Basic ')) {
@@ -149,30 +151,35 @@ app.post('/auth/v2/token', (req: Request, res: Response): void => {
     return;
   }
 
-  const credentials = Buffer.from(authHeader.slice(6), 'base64').toString();
-  const [clientId, clientSecret] = credentials.split(':');
+  try {
+    // Forward the request to the actual API
+    const tokenResponse = await fetch(`${apiUrl}/auth/v2/token`, {
+      method: 'POST',
+      headers: {
+        Authorization: authHeader,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials'
+      }),
+    });
 
-  if (clientId !== process.env.CLIENT_ID || clientSecret !== process.env.CLIENT_SECRET) {
-    res.status(401).json({ error: 'Invalid credentials' });
-    return;
+    const tokenData = await tokenResponse.json();
+    
+    if (!tokenResponse.ok) {
+      res.status(tokenResponse.status).json(tokenData);
+      return;
+    }
+
+    res.json(tokenData);
+  } catch (error) {
+    console.error('Error fetching token:', error);
+    res.status(500).json({ error: 'Failed to fetch token' });
   }
-
-  if (req.body.grant_type !== 'client_credentials') {
-    res.status(400).json({ error: 'Invalid grant_type' });
-    return;
-  }
-
-  const token = randomBytes(32).toString('hex');
-  
-  res.json({
-    access_token: token,
-    token_type: 'Bearer',
-    expires_in: 3600
-  });
 });
 
 // Session endpoint
-app.post('/v1/session', (req: Request, res: Response): void => {
+app.post('/v1/session', async (req: Request, res: Response): Promise<void> => {
   const authHeader = req.headers.authorization;
   
   if (!authHeader?.startsWith('Bearer ')) {
@@ -187,12 +194,33 @@ app.post('/v1/session', (req: Request, res: Response): void => {
     return;
   }
 
-  const sessionId = randomBytes(16).toString('hex');
-  
-  res.status(201).json({
-    session_id: sessionId,
-    url: `https://verification.didit.me/verify/${sessionId}`
-  });
+  try {
+    // Use verification.didit.me for session creation
+    const sessionResponse = await fetch(`${verificationUrl}/v1/session/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: authHeader,
+      },
+      body: JSON.stringify({
+        features,
+        callback,
+        vendor_data
+      }),
+    });
+
+    const sessionData = await sessionResponse.json();
+    
+    if (!sessionResponse.ok) {
+      res.status(sessionResponse.status).json(sessionData);
+      return;
+    }
+
+    res.status(201).json(sessionData);
+  } catch (error) {
+    console.error('Error creating session:', error);
+    res.status(500).json({ error: 'Failed to create session' });
+  }
 });
 
 // Start server
