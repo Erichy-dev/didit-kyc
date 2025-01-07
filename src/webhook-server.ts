@@ -44,7 +44,7 @@ function verifySignature(
          timingSafeEqual(expectedBuffer, providedBuffer);
 }
 
-app.post('/webhook', async (req: any, res: any) => {
+app.post('/', async (req: any, res: any) => {
   const signature = req.headers['x-signature'] as string;
   const rawBody = req.rawBody.toString('utf8');
   
