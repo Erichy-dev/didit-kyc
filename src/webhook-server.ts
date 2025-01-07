@@ -47,10 +47,25 @@ function verifySignature(
 app.post('/webhook', async (req: any, res: any) => {
   const signature = req.headers['x-signature'] as string;
   const rawBody = req.rawBody.toString('utf8');
-  const body = JSON.parse(rawBody);
   
   if (!signature) {
     return res.status(401).json({ error: 'Missing signature' });
+  }
+
+  if (!rawBody) {
+    return res.status(400).json({ error: 'Missing request body' });
+  }
+
+  let body;
+  try {
+    body = JSON.parse(rawBody);
+  } catch (error) {
+    console.error('Failed to parse request body:', error);
+    return res.status(400).json({ error: 'Invalid JSON body' });
+  }
+
+  if (!body.created_at) {
+    return res.status(400).json({ error: 'Missing created_at timestamp' });
   }
 
   if (!verifySignature(rawBody, signature, body.created_at)) {
