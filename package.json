@@ -5,7 +5,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node dist/index.js",
-    "dev": "ts-node-dev src/index.ts",
+    "dev": "ts-node src/index.ts",
+    "generate-webhook-test": "ts-node src/generate-webhook-test.ts",
     "build": "tsc",
     "watch": "tsc -w"
   },
